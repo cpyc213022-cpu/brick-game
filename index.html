@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>打方塊</title>
+    <title>自主學習成果：經典打方塊遊戲</title>
     <style>
         body { 
             background-color: #222; 
@@ -36,7 +36,7 @@
 </head>
 <body>
 
-    <h1>打方塊</h1>
+    <h1>自主學習成果：經典打方塊</h1>
     <div id="status">
         分數: <span id="score" class="amber">0</span> | 
         關卡: <span id="level" class="amber">1</span> / 3 | 
@@ -59,16 +59,22 @@
             let rightPressed = false, leftPressed = false;
             
             let ballRadius = 8, defaultBallRadius = 8, ballX, ballY, ballSpeed = 4, dx = 0, dy = 0;
+            let speedMultiplier = 1.0; // 控制速度增減狀態
+            
             let items = [], itemDropChance = 0.2, activeEffect = "無";
-            let isThroughBall = false, hasBottomShield = false;
+            let isThroughBall = false, hasBottomShield = false, isMagnetic = false;
+            let ballAttachedOffset = paddleWidth / 2; // 吸住時的相對位置
             let effectEndTime = 0;
 
+            // 完整 10 種技能庫
             const ITEM_TYPES = [
                 { type: "WIDE", color: "#4caf50", text: "擋板變寬" },
                 { type: "SLOW", color: "#2196f3", text: "球速變慢" },
                 { type: "BIG", color: "#9c27b0", text: "球體放大" },
                 { type: "THROUGH", color: "#ffeb3b", text: "貫穿球" },
+                { type: "MAGNET", color: "#e040fb", text: "磁性擋板" }, // 新增：紫色
                 { type: "SHIELD", color: "#00bcd4", text: "防禦底板" },
+                { type: "LIFE", color: "#8bc34a", text: "生命加一" },   // 新增：淺綠色
                 { type: "NARROW", color: "#f44336", text: "擋板變窄" },
                 { type: "FAST", color: "#e91e63", text: "球速變快" },
                 { type: "SMALL", color: "#ff5722", text: "球體縮小" }
@@ -92,6 +98,7 @@
             function initLevel(lvl) {
                 currentLevel = lvl; items = []; 
                 hasBottomShield = false; 
+                speedMultiplier = 1.0;
                 resetTempEffects();
                 activeEffect = "無";
                 
@@ -119,15 +126,36 @@
 
             function resetBallAndPaddle() {
                 isBallLaunched = false; paddleWidth = defaultPaddleWidth;
-                paddleX = (canvas.width - paddleWidth) / 2; ballX = canvas.width / 2; ballY = paddleY - ballRadius;
-                dx = 0; dy = 0;
+                paddleX = (canvas.width - paddleWidth) / 2; 
+                ballAttachedOffset = paddleWidth / 2;
+                ballX = paddleX + ballAttachedOffset; 
+                ballY = paddleY - ballRadius;
+                dx = 0; dy = 0; aimAngle = -Math.PI / 2;
             }
 
             function resetTempEffects() {
+                // 恢復原先的球速
+                if (speedMultiplier !== 1.0) {
+                    let currentSpeed = Math.sqrt(dx*dx + dy*dy);
+                    if (currentSpeed > 0) {
+                        dx = (dx / currentSpeed) * ballSpeed;
+                        dy = (dy / currentSpeed) * ballSpeed;
+                    }
+                    speedMultiplier = 1.0;
+                }
                 paddleWidth = defaultPaddleWidth; 
                 ballRadius = defaultBallRadius;
                 isThroughBall = false;
+                isMagnetic = false;
                 effectEndTime = 0;
+            }
+
+            function updateSpeed(targetSpeed) {
+                let currentSpeed = Math.sqrt(dx*dx + dy*dy);
+                if (currentSpeed > 0) {
+                    dx = (dx / currentSpeed) * targetSpeed;
+                    dy = (dy / currentSpeed) * targetSpeed;
+                }
             }
 
             function restartGame() {
@@ -137,7 +165,9 @@
 
             function launchBall() {
                 if (!isBallLaunched && !gameOver && !gameWin) {
-                    dx = Math.cos(aimAngle) * ballSpeed; dy = Math.sin(aimAngle) * ballSpeed;
+                    let currentSpeed = ballSpeed * speedMultiplier;
+                    dx = Math.cos(aimAngle) * currentSpeed; 
+                    dy = Math.sin(aimAngle) * currentSpeed;
                     isBallLaunched = true; updateUI();
                 }
             }
@@ -166,19 +196,23 @@
                 let rect = canvas.getBoundingClientRect();
                 let relativeX = e.clientX - rect.left;
                 let relativeY = e.clientY - rect.top;
+                
+                // 讓滑鼠可以隨時移動擋板 (包含磁性吸附時)
+                if (relativeX > 0 && relativeX < canvas.width) paddleX = relativeX - paddleWidth / 2;
+
+                // 若未發射，更新瞄準輔助線角度
                 if (!isBallLaunched) {
                     let angle = Math.atan2(relativeY - ballY, relativeX - ballX);
                     if (angle > -15 * Math.PI / 180 && angle < 0) angle = -15 * Math.PI / 180;
                     if (angle < -165 * Math.PI / 180 || angle > 0) angle = -165 * Math.PI / 180;
                     aimAngle = angle;
-                } else {
-                    if (relativeX > 0 && relativeX < canvas.width) paddleX = relativeX - paddleWidth / 2;
                 }
             });
 
             function update() {
                 if (gameOver || gameWin) return;
                 
+                // 1. 技能倒數處理
                 if (effectEndTime > 0) {
                     if (Date.now() >= effectEndTime) {
                         resetTempEffects();
@@ -187,78 +221,103 @@
                     updateUI(); 
                 }
 
-                if (!isBallLaunched) { paddleX = (canvas.width - paddleWidth) / 2; ballX = canvas.width / 2; ballY = paddleY - ballRadius; return; }
-                
+                // 2. 鍵盤擋板移動
                 if (rightPressed && paddleX < canvas.width - paddleWidth) paddleX += paddleSpeed;
                 if (leftPressed && paddleX > 0) paddleX -= paddleSpeed;
                 
-                let prevX = ballX; let prevY = ballY; 
-                ballX += dx; ballY += dy;
-                
-                if (ballX + ballRadius > canvas.width || ballX - ballRadius < 0) { dx = -dx; }
-                if (ballY - ballRadius < 0) { dy = -dy; }
-                
-                let shieldY = canvas.height - 25; 
-                if (hasBottomShield && ballY + dy > shieldY - ballRadius) {
-                    dy = -dy; ballY = shieldY - ballRadius; 
-                    hasBottomShield = false; updateUI();
-                } else if (ballY + dy > canvas.height - ballRadius) {
-                    lives--; updateUI(); if (lives <= 0) gameOver = true; else resetBallAndPaddle(); return;
-                }
-
-                if (ballY + ballRadius >= paddleY && ballY - ballRadius <= paddleY + paddleHeight && ballX > paddleX && ballX < paddleX + paddleWidth) {
-                    let hitPoint = (ballX - (paddleX + paddleWidth / 2)) / (paddleWidth / 2);
-                    let speedCurrent = Math.sqrt(dx*dx + dy*dy);
-                    let angle = -Math.PI/2 + (hitPoint * Math.PI/4);
-                    dx = Math.cos(angle) * speedCurrent; dy = Math.sin(angle) * speedCurrent;
+                // 3. 球體與物理邏輯
+                if (!isBallLaunched) { 
+                    // 吸附在擋板上
+                    ballX = paddleX + ballAttachedOffset; 
                     ballY = paddleY - ballRadius; 
-                }
+                    // 防止球超出邊界
+                    if (ballX < ballRadius) ballX = ballRadius;
+                    if (ballX > canvas.width - ballRadius) ballX = canvas.width - ballRadius;
+                } else {
+                    let prevX = ballX; let prevY = ballY; 
+                    ballX += dx; ballY += dy;
+                    
+                    // 撞牆判定
+                    if (ballX + ballRadius > canvas.width || ballX - ballRadius < 0) { dx = -dx; }
+                    if (ballY - ballRadius < 0) { dy = -dy; }
+                    
+                    // 防護網與落地判定
+                    let shieldY = canvas.height - 25; 
+                    if (hasBottomShield && ballY + dy > shieldY - ballRadius) {
+                        dy = -dy; ballY = shieldY - ballRadius; 
+                        hasBottomShield = false; updateUI();
+                    } else if (ballY + dy > canvas.height - ballRadius) {
+                        lives--; updateUI(); if (lives <= 0) gameOver = true; else resetBallAndPaddle();
+                    }
 
-                let allBricksCleared = true;
-                let collidedThisFrame = false; 
+                    // 擋板判定 (需往下掉落時才接)
+                    if (isBallLaunched && dy > 0 && ballY + ballRadius >= paddleY && ballY - ballRadius <= paddleY + paddleHeight && ballX > paddleX && ballX < paddleX + paddleWidth) {
+                        let hitPoint = (ballX - (paddleX + paddleWidth / 2)) / (paddleWidth / 2);
+                        let currentSpeed = Math.sqrt(dx*dx + dy*dy);
+                        let angle = -Math.PI/2 + (hitPoint * Math.PI/4);
 
-                for (let r = 0; r < brickRowCount; r++) {
-                    for (let c = 0; c < brickColumnCount; c++) {
-                        let b = bricks[r][c];
-                        if (b.status === 1) {
-                            if (b.type !== 3) allBricksCleared = false;
-                            
-                            if (ballX + ballRadius > b.x && ballX - ballRadius < b.x + brickWidth && ballY + ballRadius > b.y && ballY - ballRadius < b.y + brickHeight) {
-                                
-                                let hitIndestructible = (b.type === 3);
-                                let shouldReflect = (!isThroughBall || hitIndestructible);
+                        if (isMagnetic) {
+                            // 磁性擋板：吸住球
+                            isBallLaunched = false;
+                            ballAttachedOffset = ballX - paddleX;
+                            aimAngle = angle;
+                            ballY = paddleY - ballRadius;
+                        } else {
+                            // 正常反彈
+                            dx = Math.cos(angle) * currentSpeed; 
+                            dy = Math.sin(angle) * currentSpeed;
+                            ballY = paddleY - ballRadius; 
+                        }
+                    }
 
-                                if (shouldReflect && !collidedThisFrame) {
-                                    let fromLeft = prevX + ballRadius <= b.x;
-                                    let fromRight = prevX - ballRadius >= b.x + brickWidth;
-                                    let fromTop = prevY + ballRadius <= b.y;
-                                    let fromBottom = prevY - ballRadius >= b.y + brickHeight;
+                    // 磚塊判定 (球還在飛行中才判定)
+                    if (isBallLaunched) {
+                        let allBricksCleared = true;
+                        let collidedThisFrame = false; 
 
-                                    if (fromLeft && dx > 0) dx = -dx;
-                                    else if (fromRight && dx < 0) dx = -dx;
-                                    else if (fromTop && dy > 0) dy = -dy;
-                                    else if (fromBottom && dy < 0) dy = -dy;
-                                    else { dx = -dx; dy = -dy; } 
+                        for (let r = 0; r < brickRowCount; r++) {
+                            for (let c = 0; c < brickColumnCount; c++) {
+                                let b = bricks[r][c];
+                                if (b.status === 1) {
+                                    if (b.type !== 3) allBricksCleared = false;
+                                    
+                                    if (ballX + ballRadius > b.x && ballX - ballRadius < b.x + brickWidth && ballY + ballRadius > b.y && ballY - ballRadius < b.y + brickHeight) {
+                                        
+                                        let hitIndestructible = (b.type === 3);
+                                        let shouldReflect = (!isThroughBall || hitIndestructible);
 
-                                    collidedThisFrame = true; 
-                                }
+                                        if (shouldReflect && !collidedThisFrame) {
+                                            let fromLeft = prevX + ballRadius <= b.x;
+                                            let fromRight = prevX - ballRadius >= b.x + brickWidth;
+                                            let fromTop = prevY + ballRadius <= b.y;
+                                            let fromBottom = prevY - ballRadius >= b.y + brickHeight;
 
-                                if (!hitIndestructible) {
-                                    b.hp--;
-                                    if (b.hp <= 0) { 
-                                        b.status = 0; score += 10; updateUI(); 
-                                        checkItemDrop(b.x + brickWidth/2, b.y + brickHeight); 
+                                            if (fromLeft && dx > 0) dx = -dx;
+                                            else if (fromRight && dx < 0) dx = -dx;
+                                            else if (fromTop && dy > 0) dy = -dy;
+                                            else if (fromBottom && dy < 0) dy = -dy;
+                                            else { dx = -dx; dy = -dy; } 
+
+                                            collidedThisFrame = true; 
+                                        }
+
+                                        if (!hitIndestructible) {
+                                            b.hp--;
+                                            if (b.hp <= 0) { 
+                                                b.status = 0; score += 10; updateUI(); 
+                                                checkItemDrop(b.x + brickWidth/2, b.y + brickHeight); 
+                                            }
+                                        }
                                     }
                                 }
                             }
                         }
+                        if (allBricksCleared) { if (currentLevel < 3) initLevel(currentLevel + 1); else gameWin = true; }
                     }
                 }
-                
-                if (allBricksCleared) { if (currentLevel < 3) initLevel(currentLevel + 1); else gameWin = true; }
-                
+
+                // 4. 掉落物更新
                 for (let i = items.length - 1; i >= 0; i--) {
-                    // 1. 技能掉落速度降低 3 倍（從 += 3 改為 += 1）
                     items[i].y += 1;
                     if (items[i].y > paddleY && items[i].y < paddleY + paddleHeight && items[i].x > paddleX && items[i].x < paddleX + paddleWidth) {
                         applyPowerUp(items[i].type); items.splice(i, 1); continue;
@@ -275,24 +334,24 @@
             }
 
             function applyPowerUp(type) {
-                if (type === "SHIELD") {
-                    hasBottomShield = true;
-                    updateUI();
-                    return; 
-                }
+                // 一次性/獨立技能
+                if (type === "SHIELD") { hasBottomShield = true; updateUI(); return; }
+                if (type === "LIFE") { lives++; updateUI(); return; }
 
+                // 覆蓋型技能
                 resetTempEffects();
-                
                 let matched = ITEM_TYPES.find(i => i.type === type);
                 activeEffect = matched ? matched.text : "未知效果";
+                
                 switch(type) {
                     case "WIDE": paddleWidth = defaultPaddleWidth * 1.6; break;
                     case "NARROW": paddleWidth = defaultPaddleWidth * 0.6; break;
-                    case "SLOW": dx *= 0.7; dy *= 0.7; break;
-                    case "FAST": dx *= 1.4; dy *= 1.4; break;
+                    case "SLOW": speedMultiplier = 0.7; updateSpeed(ballSpeed * speedMultiplier); break;
+                    case "FAST": speedMultiplier = 1.4; updateSpeed(ballSpeed * speedMultiplier); break;
                     case "BIG": ballRadius = defaultBallRadius * 1.8; break;
                     case "SMALL": ballRadius = defaultBallRadius * 0.6; break;
                     case "THROUGH": isThroughBall = true; break;
+                    case "MAGNET": isMagnetic = true; break;
                 }
                 
                 effectEndTime = Date.now() + 10000;
@@ -313,9 +372,18 @@
                         }
                     }
                 }
-                ctx.beginPath(); ctx.rect(paddleX, paddleY, paddleWidth, paddleHeight); ctx.fillStyle = isThroughBall ? "#ffeb3b" : "#ffffff"; ctx.fill(); ctx.closePath();
-                ctx.beginPath(); ctx.arc(ballX, ballY, ballRadius, 0, Math.PI * 2); ctx.fillStyle = isThroughBall ? "#ffeb3b" : "#ffffff"; ctx.fill(); ctx.closePath();
                 
+                // 擋板繪製 (磁性擋板變成紫色)
+                ctx.beginPath(); ctx.rect(paddleX, paddleY, paddleWidth, paddleHeight); 
+                ctx.fillStyle = isThroughBall ? "#ffeb3b" : (isMagnetic ? "#e040fb" : "#ffffff"); 
+                ctx.fill(); ctx.closePath();
+                
+                // 球體繪製
+                ctx.beginPath(); ctx.arc(ballX, ballY, ballRadius, 0, Math.PI * 2); 
+                ctx.fillStyle = isThroughBall ? "#ffeb3b" : "#ffffff"; 
+                ctx.fill(); ctx.closePath();
+                
+                // 瞄準輔助線 (未發射，或是被磁性擋板吸住時都會顯示)
                 if (!isBallLaunched && !gameOver && !gameWin) {
                     ctx.setLineDash([6, 6]); ctx.beginPath(); ctx.moveTo(ballX, ballY);
                     ctx.lineTo(ballX + Math.cos(aimAngle) * 150, ballY + Math.sin(aimAngle) * 150);
@@ -341,11 +409,11 @@
                 
                 if (gameOver) { 
                     ctx.font = "30px sans-serif"; ctx.fillStyle = "red"; ctx.fillText("GAME OVER", canvas.width/2 - 90, canvas.height/2); 
-                    ctx.font = "20px sans-serif"; ctx.fillStyle = "#aaa"; ctx.fillText("(點擊重新開始)", canvas.width/2 - 110, canvas.height/2 + 40); 
+                    ctx.font = "20px sans-serif"; ctx.fillStyle = "#aaa"; ctx.fillText("(點擊滑鼠左鍵重新開始)", canvas.width/2 - 110, canvas.height/2 + 40); 
                 }
                 if (gameWin) { 
-                    ctx.font = "30px sans-serif"; ctx.fillStyle = "gold"; ctx.fillText("恭喜通關！", canvas.width/2 - 110, canvas.height/2); 
-                    ctx.font = "20px sans-serif"; ctx.fillStyle = "#aaa"; ctx.fillText("(點擊再玩一次)", canvas.width/2 - 110, canvas.height/2 + 40);
+                    ctx.font = "30px sans-serif"; ctx.fillStyle = "gold"; ctx.fillText("恭喜通關！(WIN)", canvas.width/2 - 110, canvas.height/2); 
+                    ctx.font = "20px sans-serif"; ctx.fillStyle = "#aaa"; ctx.fillText("(點擊滑鼠左鍵再玩一次)", canvas.width/2 - 110, canvas.height/2 + 40);
                 }
             }
 
@@ -364,9 +432,9 @@
                 }
                 
                 let newMsgText = "";
-                if (gameOver) newMsgText = "狀態：遊戲結束！點擊重新開始";
-                else if (gameWin) newMsgText = "狀態：恭喜過關！點擊再玩一次";
-                else if (!isBallLaunched) newMsgText = `狀態：【第 ${currentLevel} 關】點擊發球！` + shieldText;
+                if (gameOver) newMsgText = "狀態：遊戲結束！點擊滑鼠左鍵重新開始";
+                else if (gameWin) newMsgText = "狀態：恭喜過關！點擊滑鼠左鍵再玩一次";
+                else if (!isBallLaunched) newMsgText = `狀態：【第 ${currentLevel} 關】請點擊左鍵或空白鍵發球！` + shieldText;
                 else {
                     let effectDisplay = activeEffect === "無" ? "無" : activeEffect + timeText;
                     newMsgText = `狀態：進行中。技能：[ ${effectDisplay} ]` + shieldText;
