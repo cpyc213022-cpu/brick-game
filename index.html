@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>打方塊遊戲</title>
+    <style>
+        body { background-color: #222; color: #fff; font-family: sans-serif; text-align: center; margin: 0; padding: 20px; }
+        #status { font-size: 18px; margin: 10px auto; background: #333; padding: 10px; border-radius: 5px; max-width: 700px; }
+        canvas { background: #111; display: block; margin: 10px auto; border: 4px solid #fff; }
+        .amber { color: #ff9800; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <h1>自主學習成果：經典打方塊</h1>
+    <div id="status">
+        分數: <span id="score" class="amber">0</span> | 
+        關卡: <span id="level" class="amber">1</span> / 3 | 
+        生命: <span id="lives" class="amber">3</span> <br>
+        <span id="msg" style="color:#4caf50;">狀態：準備發球</span>
+    </div>
+    <canvas id="gameCanvas" width="700" height="500"></canvas>
+
+    <script>
+        // 確保網頁元件都載入完才執行，防止黑畫面
+        document.addEventListener("DOMContentLoaded", () => {
+            const canvas = document.getElementById("gameCanvas");
+            const ctx = canvas.getContext("2d");
+
+            let score = 0, currentLevel = 1, lives = 3;
+            let isBallLaunched = false, gameOver = false, gameWin = false;
+            let paddleHeight = 15, paddleWidth = 120, defaultPaddleWidth = 120;
+            let paddleX = (canvas.width - paddleWidth) / 2, paddleY = canvas.height - 30, paddleSpeed = 8;
+            let rightPressed = false, leftPressed = false;
+            let ballRadius = 8, defaultBallRadius = 8, ballX, ballY, ballSpeed = 4, dx = 0, dy = 0;
+            let items = [], itemDropChance = 0.2, activeEffect = "無", effectTimeoutId = null;
+            let isThroughBall = false, hasBottomShield = false;
+
+            const ITEM_TYPES = [
+                { type: "WIDE", color: "#4caf50", text: "擋板變寬 (Buff)" },
+                { type: "SLOW", color: "#2196f3", text: "球速變慢 (Buff)" },
+                { type: "BIG", color: "#9c27b0", text: "球體放大 (Buff)" },
+                { type: "THROUGH", color: "#ffeb3b", text: "貫穿球 (大招)" },
+                { type: "SHIELD", color: "#00bcd4", text: "防禦底板 (多一條命)" },
+                { type: "NARROW", color: "#f44336", text: "擋板變窄 (Debuff)" },
+                { type: "FAST", color: "#e91e63", text: "球速變快 (Debuff)" },
+                { type: "SMALL", color: "#ff5722", text: "球體縮小 (Debuff)" }
+            ];
+
+            const levelLayouts = {
+                1: [[1,1,1,1,1,1,1,1,1,1],[1,1,1,1,1,1,1,1,1,1],[1,1,1,1,1,1,1,1,1,1]],
+                2: [[0,0,0,2,2,2,2,0,0,0],[0,0,2,1,1,1,1,2,0,0],[0,2,1,1,1,1,1,1,2,0],[2,1,1,1,1,1,1,1,1,2]],
+                3: [[1,3,1,1,3,3,1,1,3,1],[2,1,2,1,2,1,2,1,2,1],[3,1,1,3,1,1,3,1,1,3],[2,2,2,2,2,2,2,2,2,2]]
+            };
+
+            let bricks = [], brickRowCount = 0, brickColumnCount = 10;
+            let brickWidth = 60, brickHeight = 20, brickPadding = 5, brickOffsetTop = 40, brickOffsetLeft = 30;
+            let aimAngle = -Math.PI / 2;
+
+            function initLevel(lvl) {
+                currentLevel = lvl; items = []; resetPowerUps();
+                ballSpeed = lvl === 1 ? 4 : (lvl === 2 ? 5 : 6.5);
+                itemDropChance = lvl === 1 ? 0.2 : (lvl === 2 ? 0.3 : 0.5);
+                const layout = levelLayouts[lvl];
+                brickRowCount = layout.length; bricks = [];
+                for (let r = 0; r < brickRowCount; r++) {
+                    bricks[r] = [];
+                    for (let c = 0; c < brickColumnCount; c++) {
+                        let type = layout[r][c];
+                        bricks[r][c] = { x: 0, y: 0, status: type > 0 ? 1 : 0, type: type, hp: type === 2 ? 2 : 1 };
+                    }
+                }
+                resetBallAndPaddle(); updateUI();
+            }
+
+            function resetBallAndPaddle() {
+                isBallLaunched = false; paddleWidth = defaultPaddleWidth;
+                paddleX = (canvas.width - paddleWidth) / 2; ballX = canvas.width / 2; ballY = paddleY - ballRadius;
+                dx = 0; dy = 0;
+            }
+
+            function resetPowerUps() {
+                paddleWidth = defaultPaddleWidth; ballRadius = defaultBallRadius;
+                isThroughBall = false; hasBottomShield = false; activeEffect = "無"; updateUI();
+            }
+
+            document.addEventListener("keydown", (e) => {
+                if (e.key === "Right" || e.key === "ArrowRight") rightPressed = true;
+                if (e.key === "Left" || e.key === "ArrowLeft") leftPressed = true; // 已修正
+                if (e.key === " ") {
+                    e.preventDefault();
+                    if (!isBallLaunched && !gameOver && !gameWin) {
+                        dx = Math.cos(aimAngle) * ballSpeed; dy = Math.sin(aimAngle) * ballSpeed;
+                        isBallLaunched = true; updateUI();
+                    }
+                }
+            });
+
+            document.addEventListener("keyup", (e) => {
+                if (e.key === "Right" || e.key === "ArrowRight") rightPressed = false;
+                if (e.key === "Left" || e.key === "ArrowLeft") leftPressed = false;
+            });
+
+            canvas.addEventListener("mousemove", (e) => {
+                let rect = canvas.getBoundingClientRect();
+                let relativeX = e.clientX - rect.left;
+                let relativeY = e.clientY - rect.top;
+                if (!isBallLaunched) {
+                    let angle = Math.atan2(relativeY - ballY, relativeX - ballX);
+                    if (angle > -15 * Math.PI / 180 && angle < 0) angle = -15 * Math.PI / 180;
+                    if (angle < -165 * Math.PI / 180 || angle > 0) angle = -165 * Math.PI / 180;
+                    aimAngle = angle;
+                } else {
+                    if (relativeX > 0 && relativeX < canvas.width) paddleX = relativeX - paddleWidth / 2;
+                }
+            });
+
+            function update() {
+                if (gameOver || gameWin) return;
+                if (!isBallLaunched) { paddleX = (canvas.width - paddleWidth) / 2; ballX = canvas.width / 2; ballY = paddleY - ballRadius; return; }
+                if (rightPressed && paddleX < canvas.width - paddleWidth) paddleX += paddleSpeed;
+                if (leftPressed && paddleX > 0) paddleX -= paddleSpeed;
+                ballX += dx; ballY += dy;
+                if (ballX + dx > canvas.width - ballRadius || ballX + dx < ballRadius) dx = -dx;
+                if (ballY + dy < ballRadius) dy = -dy;
+                if (ballY + dy > canvas.height - ballRadius) {
+                    if (hasBottomShield) { dy = -dy; hasBottomShield = false; activeEffect = "防禦底板已消耗"; updateUI(); }
+                    else { lives--; updateUI(); if (lives <= 0) gameOver = true; else resetBallAndPaddle(); return; }
+                }
+                if (ballY + dy > paddleY && ballY + dy < paddleY + paddleHeight && ballX > paddleX && ballX < paddleX + paddleWidth) {
+                    let hitPoint = (ballX - (paddleX + paddleWidth / 2)) / (paddleWidth / 2);
+                    let speedCurrent = Math.sqrt(dx*dx + dy*dy);
+                    let angle = -Math.PI/2 + (hitPoint * Math.PI/4);
+                    dx = Math.cos(angle) * speedCurrent; dy = Math.sin(angle) * speedCurrent;
+                }
+                let allBricksCleared = true;
+                for (let r = 0; r < brickRowCount; r++) {
+                    for (let c = 0; c < brickColumnCount; c++) {
+                        let b = bricks[r][c];
+                        if (b.status === 1) {
+                            if (b.type !== 3) allBricksCleared = false;
+                            if (ballX > b.x && ballX < b.x + brickWidth && ballY > b.y && ballY < b.y + brickHeight) {
+                                if (!isThroughBall) dy = -dy;
+                                if (b.type !== 3) {
+                                    b.hp--;
+                                    if (b.hp === 0) { b.status = 0; score += 10; updateUI(); checkItemDrop(b.x + brickWidth/2, b.y + brickHeight); }
+                                }
+                            }
+                        }
+                    }
+                }
+                if (allBricksCleared) { if (currentLevel < 3) initLevel(currentLevel + 1); else gameWin = true; }
+                for (let i = items.length - 1; i >= 0; i--) {
+                    items[i].y += 3;
+                    if (items[i].y > paddleY && items[i].y < paddleY + paddleHeight && items[i].x > paddleX && items[i].x < paddleX + paddleWidth) {
+                        applyPowerUp(items[i].type); items.splice(i, 1); continue;
+                    }
+                    if (items[i].y > canvas.height) items.splice(i, 1);
+                }
+            }
+
+            function checkItemDrop(x, y) {
+                if (Math.random() < itemDropChance) {
+                    let selected = ITEM_TYPES[Math.floor(Math.random() * ITEM_TYPES.length)];
+                    items.push({ x: x, y: y, type: selected.type, color: selected.color, text: selected.text });
+                }
+            }
+
+            function applyPowerUp(type) {
+                if (effectTimeoutId) clearTimeout(effectTimeoutId);
+                resetPowerUps();
+                let matched = ITEM_TYPES.find(i => i.type === type);
+                activeEffect = matched ? matched.text : "未知效果";
+                switch(type) {
+                    case "WIDE": paddleWidth = defaultPaddleWidth * 1.6; break;
+                    case "NARROW": paddleWidth = defaultPaddleWidth * 0.6; break;
+                    case "SLOW": dx *= 0.7; dy *= 0.7; break;
+                    case "FAST": dx *= 1.4; dy *= 1.4; break;
+                    case "BIG": ballRadius = defaultBallRadius * 1.8; break;
+                    case "SMALL": ballRadius = defaultBallRadius * 0.6; break;
+                    case "THROUGH": isThroughBall = true; break;
+                    case "SHIELD": hasBottomShield = true; break;
+                }
+                updateUI();
+                effectTimeoutId = setTimeout(() => { resetPowerUps(); activeEffect = "效果已結束"; updateUI(); }, 10000);
+            }
+
+            function draw() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                for (let r = 0; r < brickRowCount; r++) {
+                    for (let c = 0; c < brickColumnCount; c++) {
+                        let b = bricks[r][c];
+                        if (b.status === 1) {
+                            b.x = (c * (brickWidth + brickPadding)) + brickOffsetLeft;
+                            b.y = (r * (brickHeight + brickPadding)) + brickOffsetTop;
+                            ctx.beginPath(); ctx.rect(b.x, b.y, brickWidth, brickHeight);
+                            ctx.fillStyle = b.type === 1 ? "#e91e63" : (b.type === 2 ? (b.hp === 2 ? "#9c27b0" : "#ba68c8") : "#666666");
+                            ctx.fill(); ctx.strokeStyle = "#fff"; ctx.stroke(); ctx.closePath();
+                        }
+                    }
+                }
+                ctx.beginPath(); ctx.rect(paddleX, paddleY, paddleWidth, paddleHeight); ctx.fillStyle = isThroughBall ? "#ffeb3b" : "#0095DD"; ctx.fill(); ctx.closePath();
+                ctx.beginPath(); ctx.arc(ballX, ballY, ballRadius, 0, Math.PI * 2); ctx.fillStyle = isThroughBall ? "#ffeb3b" : "#0095DD"; ctx.fill(); ctx.closePath();
+                if (!isBallLaunched && !gameOver && !gameWin) {
+                    ctx.setLineDash([6, 6]); ctx.beginPath(); ctx.moveTo(ballX, ballY);
+                    ctx.lineTo(ballX + Math.cos(aimAngle) * 150, ballY + Math.sin(aimAngle) * 150);
+                    ctx.strokeStyle = "orange"; ctx.lineWidth = 3; ctx.stroke(); ctx.setLineDash([]); ctx.lineWidth = 1;
+                }
+                if (hasBottomShield) { ctx.beginPath(); ctx.rect(0, canvas.height - 4, canvas.width, 4); ctx.fillStyle = "#00bcd4"; ctx.fill(); ctx.closePath(); }
+                for (let i = 0; i < items.length; i++) {
+                    ctx.beginPath(); ctx.arc(items[i].x, items[i].y, 10, 0, Math.PI * 2); ctx.fillStyle = items[i].color; ctx.fill(); ctx.strokeStyle = "#fff"; ctx.stroke(); ctx.closePath();
+                }
+                if (gameOver) { ctx.font = "30px sans-serif"; ctx.fillStyle = "red"; ctx.fillText("GAME OVER", canvas.width/2 - 90, canvas.height/2); }
+                if (gameWin) { ctx.font = "30px sans-serif"; ctx.fillStyle = "gold"; ctx.fillText("恭喜通關！(WIN)", canvas.width/2 - 110, canvas.height/2); }
+            }
+
+            function updateUI() {
+                document.getElementById("score").innerText = score;
+                document.getElementById("level").innerText = currentLevel;
+                document.getElementById("lives").innerText = lives;
+                let msg = document.getElementById("msg");
+                if (gameOver) msg.innerText = "狀態：遊戲結束！";
+                else if (gameWin) msg.innerText = "狀態：恭喜過關！";
+                else if (!isBallLaunched) msg.innerText = `狀態：【第 ${currentLevel} 關】請移動滑鼠瞄準，按【空白鍵】發球！`;
+                else msg.innerText = `狀態：進行中。技能：[ ${activeEffect} ]`;
+            }
+
+            function gameLoop() { update(); draw(); requestAnimationFrame(gameLoop); }
+            initLevel(1); gameLoop();
+        });
+    </script>
+</body>
+</html>
