@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>自主學習成果：經典打方塊遊戲</title>
+    <title>打方塊</title>
     <style>
         body { 
             background-color: #222; 
@@ -36,7 +36,7 @@
 </head>
 <body>
 
-    <h1>自主學習成果：經典打方塊</h1>
+    <h1>打方塊</h1>
     <div id="status">
         分數: <span id="score" class="amber">0</span> | 
         關卡: <span id="level" class="amber">1</span> / 3 | 
@@ -51,11 +51,9 @@
             if (!canvas) return;
             const ctx = canvas.getContext("2d");
 
-            // 7. 預設生命改為5
             let score = 0, currentLevel = 1, lives = 5;
             let isBallLaunched = false, gameOver = false, gameWin = false;
             
-            // 5. 檔板高度提高、位置往上移
             let paddleHeight = 20, paddleWidth = 120, defaultPaddleWidth = 120;
             let paddleY = canvas.height - 50, paddleX = (canvas.width - paddleWidth) / 2, paddleSpeed = 8;
             let rightPressed = false, leftPressed = false;
@@ -65,22 +63,49 @@
             let isThroughBall = false, hasBottomShield = false;
 
             const ITEM_TYPES = [
-                { type: "WIDE", color: "#4caf50", text: "擋板變寬 (Buff)" },
-                { type: "SLOW", color: "#2196f3", text: "球速變慢 (Buff)" },
-                { type: "BIG", color: "#9c27b0", text: "球體放大 (Buff)" },
-                { type: "THROUGH", color: "#ffeb3b", text: "貫穿球 (大招)" },
-                { type: "SHIELD", color: "#00bcd4", text: "防禦底板 (多一條命)" },
-                { type: "NARROW", color: "#f44336", text: "擋板變窄 (Debuff)" },
-                { type: "FAST", color: "#e91e63", text: "球速變快 (Debuff)" },
-                { type: "SMALL", color: "#ff5722", text: "球體縮小 (Debuff)" }
+                { type: "WIDE", color: "#4caf50", text: "擋板變寬" },
+                { type: "SLOW", color: "#2196f3", text: "球速變慢" },
+                { type: "BIG", color: "#9c27b0", text: "球體放大" },
+                { type: "THROUGH", color: "#ffeb3b", text: "貫穿球" },
+                { type: "SHIELD", color: "#00bcd4", text: "防禦底板" },
+                { type: "NARROW", color: "#f44336", text: "擋板變窄" },
+                { type: "FAST", color: "#e91e63", text: "球速變快" },
+                { type: "SMALL", color: "#ff5722", text: "球體縮小" }
             ];
 
-            // 1. 第一關改為 3x8
             const levelLayouts = {
                 1: [[1,1,1,1,1,1,1,1],[1,1,1,1,1,1,1,1],[1,1,1,1,1,1,1,1]],
-                2: [[0,0,0,2,2,2,2,0,0,0],[0,0,2,1,1,1,1,2,0,0],[0,2,1,1,1,1,1,1,2,0],[2,1,1,1,1,1,1,1,1,2]],
                 3: [[1,3,1,1,3,3,1,1,3,1],[2,1,2,1,2,1,2,1,2,1],[3,1,1,3,1,1,3,1,1,3],[2,2,2,2,2,2,2,2,2,2]]
             };
+
+            // 4. 第二關的隨機形狀庫 (愛心、金字塔、中空正方形)
+            const level2Shapes = [
+                [ // 大愛心
+                    [0,1,1,0,0,0,0,1,1,0],
+                    [1,2,2,1,0,0,1,2,2,1],
+                    [1,2,2,2,1,1,2,2,2,1],
+                    [0,1,2,2,2,2,2,2,1,0],
+                    [0,0,1,2,2,2,2,1,0,0],
+                    [0,0,0,1,2,2,1,0,0,0],
+                    [0,0,0,0,1,1,0,0,0,0]
+                ],
+                [ // 金字塔
+                    [0,0,0,0,1,1,0,0,0,0],
+                    [0,0,0,1,2,2,1,0,0,0],
+                    [0,0,1,2,2,2,2,1,0,0],
+                    [0,1,2,2,2,2,2,2,1,0],
+                    [1,1,1,1,1,1,1,1,1,1]
+                ],
+                [ // 中空正方形
+                    [1,1,1,1,1,1,1,1,1,1],
+                    [1,0,0,0,0,0,0,0,0,1],
+                    [1,0,2,2,2,2,2,2,0,1],
+                    [1,0,2,0,0,0,0,2,0,1],
+                    [1,0,2,2,2,2,2,2,0,1],
+                    [1,0,0,0,0,0,0,0,0,1],
+                    [1,1,1,1,1,1,1,1,1,1]
+                ]
+            ];
 
             let bricks = [], brickRowCount = 0, brickColumnCount = 0;
             let brickWidth = 60, brickHeight = 20, brickPadding = 5, brickOffsetTop = 50, brickOffsetLeft = 30;
@@ -88,16 +113,24 @@
 
             function initLevel(lvl) {
                 currentLevel = lvl; items = []; 
-                hasBottomShield = false; // 換關才重置防護網
+                hasBottomShield = false; 
                 resetTempEffects();
                 
-                ballSpeed = lvl === 1 ? 4 : (lvl === 2 ? 5 : 6.5);
+                // 3. 調整第三關初始速度 (從 6.5 降為 5.5)
+                ballSpeed = lvl === 1 ? 4 : (lvl === 2 ? 4.8 : 5.5);
                 itemDropChance = lvl === 1 ? 0.2 : (lvl === 2 ? 0.3 : 0.5);
-                const layout = levelLayouts[lvl];
+                
+                let layout;
+                if (lvl === 2) {
+                    // 隨機抽選第二關形狀
+                    layout = level2Shapes[Math.floor(Math.random() * level2Shapes.length)];
+                } else {
+                    layout = levelLayouts[lvl];
+                }
+
                 brickRowCount = layout.length; 
                 brickColumnCount = layout[0].length; 
                 
-                // 動態計算置中偏移量
                 let totalBrickWidth = (brickColumnCount * brickWidth) + ((brickColumnCount - 1) * brickPadding);
                 brickOffsetLeft = (canvas.width - totalBrickWidth) / 2;
                 
@@ -118,13 +151,20 @@
                 dx = 0; dy = 0;
             }
 
-            // 6. 分離限時狀態與永久狀態（防護網）
             function resetTempEffects() {
                 paddleWidth = defaultPaddleWidth; ballRadius = defaultBallRadius;
                 isThroughBall = false;
             }
 
-            // 發球邏輯包裝
+            // 2. 新增重新開始遊戲的函式
+            function restartGame() {
+                score = 0;
+                lives = 5;
+                gameOver = false;
+                gameWin = false;
+                initLevel(1);
+            }
+
             function launchBall() {
                 if (!isBallLaunched && !gameOver && !gameWin) {
                     dx = Math.cos(aimAngle) * ballSpeed; dy = Math.sin(aimAngle) * ballSpeed;
@@ -132,11 +172,14 @@
                 }
             }
 
-            // 鍵盤與滑鼠事件
             document.addEventListener("keydown", (e) => {
                 if (e.key === "Right" || e.key === "ArrowRight") rightPressed = true;
                 if (e.key === "Left" || e.key === "ArrowLeft") leftPressed = true;
-                if (e.key === " ") { e.preventDefault(); launchBall(); }
+                if (e.key === " ") { 
+                    e.preventDefault(); 
+                    if (gameOver || gameWin) restartGame();
+                    else launchBall(); 
+                }
             });
 
             document.addEventListener("keyup", (e) => {
@@ -144,9 +187,12 @@
                 if (e.key === "Left" || e.key === "ArrowLeft") leftPressed = false;
             });
 
-            // 2. 滑鼠左鍵發射
+            // 滑鼠左鍵發射或重新開始
             canvas.addEventListener("mousedown", (e) => {
-                if (e.button === 0) launchBall();
+                if (e.button === 0) {
+                    if (gameOver || gameWin) restartGame();
+                    else launchBall();
+                }
             });
 
             canvas.addEventListener("mousemove", (e) => {
@@ -170,33 +216,30 @@
                 if (rightPressed && paddleX < canvas.width - paddleWidth) paddleX += paddleSpeed;
                 if (leftPressed && paddleX > 0) paddleX -= paddleSpeed;
                 
-                let prevX = ballX; let prevY = ballY; // 記錄上一幀位置，用於精準碰撞計算
+                let prevX = ballX; let prevY = ballY; 
                 ballX += dx; ballY += dy;
                 
-                // 牆壁碰撞
                 if (ballX + ballRadius > canvas.width || ballX - ballRadius < 0) { dx = -dx; }
                 if (ballY - ballRadius < 0) { dy = -dy; }
                 
-                // 底部與防護網碰撞
-                let shieldY = canvas.height - 25; // 6. 防護網提高
+                let shieldY = canvas.height - 25; 
                 if (hasBottomShield && ballY + dy > shieldY - ballRadius) {
-                    dy = -dy; ballY = shieldY - ballRadius; // 防止卡在網裡
+                    dy = -dy; ballY = shieldY - ballRadius; 
                     hasBottomShield = false; updateUI();
                 } else if (ballY + dy > canvas.height - ballRadius) {
                     lives--; updateUI(); if (lives <= 0) gameOver = true; else resetBallAndPaddle(); return;
                 }
 
-                // 檔板碰撞 (防止球卡在檔板內)
                 if (ballY + ballRadius >= paddleY && ballY - ballRadius <= paddleY + paddleHeight && ballX > paddleX && ballX < paddleX + paddleWidth) {
                     let hitPoint = (ballX - (paddleX + paddleWidth / 2)) / (paddleWidth / 2);
                     let speedCurrent = Math.sqrt(dx*dx + dy*dy);
                     let angle = -Math.PI/2 + (hitPoint * Math.PI/4);
                     dx = Math.cos(angle) * speedCurrent; dy = Math.sin(angle) * speedCurrent;
-                    ballY = paddleY - ballRadius; // 強制推回板子上方
+                    ballY = paddleY - ballRadius; 
                 }
 
                 let allBricksCleared = true;
-                let collidedThisFrame = false; // 3. 防止同時撞擊多磚塊導致方向抵銷 (穿透Bug)
+                let collidedThisFrame = false; 
 
                 for (let r = 0; r < brickRowCount; r++) {
                     for (let c = 0; c < brickColumnCount; c++) {
@@ -204,10 +247,8 @@
                         if (b.status === 1) {
                             if (b.type !== 3) allBricksCleared = false;
                             
-                            // 精準圓形外框與矩形碰撞
                             if (ballX + ballRadius > b.x && ballX - ballRadius < b.x + brickWidth && ballY + ballRadius > b.y && ballY - ballRadius < b.y + brickHeight) {
                                 
-                                // 4. 判斷撞擊面，修正鐵磚塊不反彈 Bug
                                 if (!isThroughBall && !collidedThisFrame) {
                                     let fromLeft = prevX + ballRadius <= b.x;
                                     let fromRight = prevX - ballRadius >= b.x + brickWidth;
@@ -216,9 +257,9 @@
 
                                     if (fromLeft || fromRight) dx = -dx;
                                     else if (fromTop || fromBottom) dy = -dy;
-                                    else { dy = -dy; dx = -dx; } // 邊角極端狀況
+                                    else { dy = -dy; dx = -dx; } 
 
-                                    collidedThisFrame = true; // 鎖定這幀的反彈，避免縫隙雙重判定
+                                    collidedThisFrame = true; 
                                 }
 
                                 if (b.type !== 3) {
@@ -252,7 +293,6 @@
             }
 
             function applyPowerUp(type) {
-                // 6. 獨立防護網處理，不覆蓋限時技能
                 if (type === "SHIELD") {
                     hasBottomShield = true;
                     updateUI();
@@ -291,8 +331,9 @@
                         }
                     }
                 }
-                ctx.beginPath(); ctx.rect(paddleX, paddleY, paddleWidth, paddleHeight); ctx.fillStyle = isThroughBall ? "#ffeb3b" : "#0095DD"; ctx.fill(); ctx.closePath();
-                ctx.beginPath(); ctx.arc(ballX, ballY, ballRadius, 0, Math.PI * 2); ctx.fillStyle = isThroughBall ? "#ffeb3b" : "#0095DD"; ctx.fill(); ctx.closePath();
+                // 1. 擋板改為白色 "#ffffff"
+                ctx.beginPath(); ctx.rect(paddleX, paddleY, paddleWidth, paddleHeight); ctx.fillStyle = isThroughBall ? "#ffeb3b" : "#ffffff"; ctx.fill(); ctx.closePath();
+                ctx.beginPath(); ctx.arc(ballX, ballY, ballRadius, 0, Math.PI * 2); ctx.fillStyle = isThroughBall ? "#ffeb3b" : "#ffffff"; ctx.fill(); ctx.closePath();
                 
                 if (!isBallLaunched && !gameOver && !gameWin) {
                     ctx.setLineDash([6, 6]); ctx.beginPath(); ctx.moveTo(ballX, ballY);
@@ -300,7 +341,6 @@
                     ctx.strokeStyle = "orange"; ctx.lineWidth = 3; ctx.stroke(); ctx.setLineDash([]); ctx.lineWidth = 1;
                 }
                 
-                // 6. 畫出明顯的防護網
                 if (hasBottomShield) { 
                     let shieldY = canvas.height - 25;
                     ctx.beginPath(); 
@@ -317,8 +357,16 @@
                 for (let i = 0; i < items.length; i++) {
                     ctx.beginPath(); ctx.arc(items[i].x, items[i].y, 10, 0, Math.PI * 2); ctx.fillStyle = items[i].color; ctx.fill(); ctx.strokeStyle = "#fff"; ctx.stroke(); ctx.closePath();
                 }
-                if (gameOver) { ctx.font = "30px sans-serif"; ctx.fillStyle = "red"; ctx.fillText("GAME OVER", canvas.width/2 - 90, canvas.height/2); }
-                if (gameWin) { ctx.font = "30px sans-serif"; ctx.fillStyle = "gold"; ctx.fillText("恭喜通關！(WIN)", canvas.width/2 - 110, canvas.height/2); }
+                
+                // 遊戲結束與通關提示加上點擊重新的文字
+                if (gameOver) { 
+                    ctx.font = "30px sans-serif"; ctx.fillStyle = "red"; ctx.fillText("GAME OVER", canvas.width/2 - 90, canvas.height/2); 
+                    ctx.font = "20px sans-serif"; ctx.fillStyle = "#aaa"; ctx.fillText("(點擊重新開始)", canvas.width/2 - 110, canvas.height/2 + 40); 
+                }
+                if (gameWin) { 
+                    ctx.font = "30px sans-serif"; ctx.fillStyle = "gold"; ctx.fillText("恭喜通關！", canvas.width/2 - 110, canvas.height/2); 
+                    ctx.font = "20px sans-serif"; ctx.fillStyle = "#aaa"; ctx.fillText("(點擊再玩一次)", canvas.width/2 - 110, canvas.height/2 + 40);
+                }
             }
 
             function updateUI() {
@@ -327,11 +375,10 @@
                 document.getElementById("lives").innerText = lives;
                 let msg = document.getElementById("msg");
                 
-                // 加上防護網的文字提示
                 let shieldText = hasBottomShield ? " [防護網啟動中]" : "";
                 
-                if (gameOver) msg.innerText = "狀態：遊戲結束！";
-                else if (gameWin) msg.innerText = "狀態：恭喜過關！";
+                if (gameOver) msg.innerText = "狀態：遊戲結束！點擊重新開始";
+                else if (gameWin) msg.innerText = "狀態：恭喜過關！點擊再玩一次";
                 else if (!isBallLaunched) msg.innerText = `狀態：【第 ${currentLevel} 關】請點擊左鍵或空白鍵發球！` + shieldText;
                 else msg.innerText = `狀態：進行中。技能：[ ${activeEffect} ]` + shieldText;
             }
