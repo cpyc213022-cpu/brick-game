@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>自主學習成果：經典打方塊遊戲</title>
+    <title>打方塊</title>
     <style>
         body { 
             background-color: #222; 
@@ -36,7 +36,7 @@
 </head>
 <body>
 
-    <h1>自主學習成果：經典打方塊</h1>
+    <h1>打方塊</h1>
     <div id="status">
         分數: <span id="score" class="amber">0</span> | 
         關卡: <span id="level" class="amber">1</span> / 3 | 
@@ -341,11 +341,11 @@
                 
                 if (gameOver) { 
                     ctx.font = "30px sans-serif"; ctx.fillStyle = "red"; ctx.fillText("GAME OVER", canvas.width/2 - 90, canvas.height/2); 
-                    ctx.font = "20px sans-serif"; ctx.fillStyle = "#aaa"; ctx.fillText("(點擊滑鼠左鍵重新開始)", canvas.width/2 - 110, canvas.height/2 + 40); 
+                    ctx.font = "20px sans-serif"; ctx.fillStyle = "#aaa"; ctx.fillText("(點擊重新開始)", canvas.width/2 - 110, canvas.height/2 + 40); 
                 }
                 if (gameWin) { 
-                    ctx.font = "30px sans-serif"; ctx.fillStyle = "gold"; ctx.fillText("恭喜通關！(WIN)", canvas.width/2 - 110, canvas.height/2); 
-                    ctx.font = "20px sans-serif"; ctx.fillStyle = "#aaa"; ctx.fillText("(點擊滑鼠左鍵再玩一次)", canvas.width/2 - 110, canvas.height/2 + 40);
+                    ctx.font = "30px sans-serif"; ctx.fillStyle = "gold"; ctx.fillText("恭喜通關！", canvas.width/2 - 110, canvas.height/2); 
+                    ctx.font = "20px sans-serif"; ctx.fillStyle = "#aaa"; ctx.fillText("(點擊再玩一次)", canvas.width/2 - 110, canvas.height/2 + 40);
                 }
             }
 
@@ -364,9 +364,9 @@
                 }
                 
                 let newMsgText = "";
-                if (gameOver) newMsgText = "狀態：遊戲結束！點擊滑鼠左鍵重新開始";
-                else if (gameWin) newMsgText = "狀態：恭喜過關！點擊滑鼠左鍵再玩一次";
-                else if (!isBallLaunched) newMsgText = `狀態：【第 ${currentLevel} 關】請點擊左鍵或空白鍵發球！` + shieldText;
+                if (gameOver) newMsgText = "狀態：遊戲結束！點擊重新開始";
+                else if (gameWin) newMsgText = "狀態：恭喜過關！點擊再玩一次";
+                else if (!isBallLaunched) newMsgText = `狀態：【第 ${currentLevel} 關】點擊發球！` + shieldText;
                 else {
                     let effectDisplay = activeEffect === "無" ? "無" : activeEffect + timeText;
                     newMsgText = `狀態：進行中。技能：[ ${effectDisplay} ]` + shieldText;
