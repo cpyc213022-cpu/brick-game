@@ -53,7 +53,7 @@
 
             let score = 0, currentLevel = 1, lives = 5;
             let isBallLaunched = false, gameOver = false, gameWin = false;
-            let isNewServe = true; // 新增：判斷是否為全新發球狀態，用來鎖定擋板置中
+            let isNewServe = true; 
             
             let paddleHeight = 20, paddleWidth = 120, defaultPaddleWidth = 120;
             let paddleY = canvas.height - 50, paddleX = (canvas.width - paddleWidth) / 2, paddleSpeed = 8;
@@ -64,7 +64,7 @@
             
             let items = [], itemDropChance = 0.2, activeEffect = "無";
             let isThroughBall = false, hasBottomShield = false;
-            let hasMagnetBuff = false; // 改為一次性 Buff
+            let hasMagnetBuff = false; 
             let ballAttachedOffset = paddleWidth / 2; 
             let effectEndTime = 0;
 
@@ -73,7 +73,7 @@
                 { type: "SLOW", color: "#2196f3", text: "球速變慢" },
                 { type: "BIG", color: "#9c27b0", text: "球體放大" },
                 { type: "THROUGH", color: "#ffeb3b", text: "貫穿球" },
-                { type: "MAGNET", color: "#e040fb", text: "磁性擋板" },
+                { type: "MAGNET", color: "#e040fb", text: "磁力準備" },
                 { type: "SHIELD", color: "#00bcd4", text: "防禦底板" },
                 { type: "LIFE", color: "#8bc34a", text: "生命加一" },   
                 { type: "NARROW", color: "#f44336", text: "擋板變窄" },
@@ -127,8 +127,8 @@
 
             function resetBallAndPaddle() {
                 isBallLaunched = false; 
-                isNewServe = true; // 回到全新發球狀態
-                hasMagnetBuff = false; // 清除磁力準備
+                isNewServe = true; 
+                hasMagnetBuff = false; 
                 paddleWidth = defaultPaddleWidth;
                 paddleX = (canvas.width - paddleWidth) / 2; 
                 ballAttachedOffset = paddleWidth / 2;
@@ -171,7 +171,7 @@
                     dx = Math.cos(aimAngle) * currentSpeed; 
                     dy = Math.sin(aimAngle) * currentSpeed;
                     isBallLaunched = true; 
-                    isNewServe = false; // 發射後解除鎖定
+                    isNewServe = false; 
                     updateUI();
                 }
             }
@@ -201,7 +201,6 @@
                 let relativeX = e.clientX - rect.left;
                 let relativeY = e.clientY - rect.top;
                 
-                // 只有在非初始發球狀態時，才允許滑鼠移動擋板
                 if (!isNewServe && relativeX > 0 && relativeX < canvas.width) {
                     paddleX = relativeX - paddleWidth / 2;
                 }
@@ -225,7 +224,6 @@
                     updateUI(); 
                 }
 
-                // 只有非發球狀態才能透過鍵盤移動擋板，否則強制鎖在正中間
                 if (!isNewServe) {
                     if (rightPressed && paddleX < canvas.width - paddleWidth) paddleX += paddleSpeed;
                     if (leftPressed && paddleX > 0) paddleX -= paddleSpeed;
@@ -259,12 +257,11 @@
                         let angle = -Math.PI/2 + (hitPoint * Math.PI/4);
 
                         if (hasMagnetBuff) {
-                            // 磁力吸住球，並消耗一次 Buff
                             isBallLaunched = false;
                             ballAttachedOffset = ballX - paddleX;
                             aimAngle = angle;
                             ballY = paddleY - ballRadius;
-                            hasMagnetBuff = false; // 消耗掉
+                            hasMagnetBuff = false; 
                             updateUI();
                         } else {
                             dx = Math.cos(angle) * currentSpeed; 
@@ -315,6 +312,12 @@
                             }
                         }
                         if (allBricksCleared) { if (currentLevel < 3) initLevel(currentLevel + 1); else gameWin = true; }
+                        
+                        // 防卡死邏輯：確保球不會只在畫面上方水平移動
+                        if (Math.abs(dy) < 1.5) {
+                            dy = dy >= 0 ? 1.5 : -1.5;
+                            updateSpeed(ballSpeed * speedMultiplier);
+                        }
                     }
                 }
 
@@ -335,12 +338,10 @@
             }
 
             function applyPowerUp(type) {
-                // 一次性/獨立技能
                 if (type === "SHIELD") { hasBottomShield = true; updateUI(); return; }
                 if (type === "LIFE") { lives++; updateUI(); return; }
-                if (type === "MAGNET") { hasMagnetBuff = true; updateUI(); return; } // 將磁力改為獨立準備狀態
+                if (type === "MAGNET") { hasMagnetBuff = true; updateUI(); return; } 
 
-                // 覆蓋型技能
                 resetTempEffects();
                 let matched = ITEM_TYPES.find(i => i.type === type);
                 activeEffect = matched ? matched.text : "未知效果";
@@ -374,7 +375,6 @@
                     }
                 }
                 
-                // 擋板繪製：貫穿球優先，接著是有磁力Buff或正吸附著球的狀態顯示紫色
                 let isHoldingBall = !isBallLaunched && !isNewServe;
                 ctx.beginPath(); ctx.rect(paddleX, paddleY, paddleWidth, paddleHeight); 
                 ctx.fillStyle = isThroughBall ? "#ffeb3b" : ((hasMagnetBuff || isHoldingBall) ? "#e040fb" : "#ffffff"); 
